@@ -1,0 +1,7 @@
+#!/bin/bash
+nasm -f elf64 sseutils64.nasm
+nasm -f elf64 regression64.nasm
+gcc -m64 -msse -O0 -no-pie sseutils64.o regression64.o regression64c.c -o regression64c -lm
+pars="";
+for arg; do pars=$pars" "$arg; done;
+./regression64c $pars

@@ -1,0 +1,394 @@
+#!/bin/bash
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+datasets="test_2000x4";
+groups=$(ls -d progetti/gruppo*);
+batchs="30";
+degrees="4";
+etaSGD=0.001;
+etaADA=3;
+it=3000;
+tout=25;
+ts=$(date +%H-%M-%S-%d-%m-%Y);
+testname=test/test.$ts.history;
+
+if [[ ! -d test ]]; then
+	mkdir test;
+fi;
+
+Scurr="";
+S="";
+exec(){
+	arch=$(printf "%s" $3 | sed s/omp//g);
+	omp=$(printf "%s" $3 | sed s/[^omp]//g);
+	ds="../../datasets/"$4;
+	if [[ $# -eq 8 ]]; then
+		algo=SGD;
+	else
+		algo=ADA;
+	fi;
+	START_TIME=$(date +%s%3N);
+	if [[ -f ./regression$3 ]]; then
+		if [[ $# -eq 8 ]]; then
+			timeout $2 ./regression$3 $ds -batch $5 -degree $6 -eta $7 -iter $8 -s > test.curr | head;
+			e=$?;
+		else
+			timeout $2 ./regression$3 $ds -batch $5 -degree $6 -eta $7 -iter $8 -s $9> test.curr | head;
+			e=$?;
+		fi;
+	else
+		printf "%i\n%i\n" -1 -1 > test.curr;
+	fi;
+	ELAPSED_TIME=$[ $(date +%s%3N) - $START_TIME ];
+	Scurr=$3";"$5";"$6";"$7";"$8";"$algo;
+	printf "%s\n" $Scurr >> ./test/results.history
+	cat test.curr >> ./test/results.history
+	l=$(grep -c \.\* test.curr);
+	if [[ $e -eq 0 ]]; then
+		if [[ ! $l -eq 2 ]]; then
+			Scurr=$Scurr";"-1";"-1";"-1";"$e";"$l;
+		else
+			Scurr=$Scurr";"$ELAPSED_TIME;
+			while read line; do
+				Scurr=$Scurr";"$line;
+			done < test.curr;
+			Scurr=$Scurr";"$e";"$l;
+		fi;
+	else
+		Scurr=$Scurr";"-1";"-1";"-1";"$e";"$l;
+	fi;
+	l=$(../../evaluate$arch $4 $algo$omp -s);
+	Scurr=$Scurr";"$l;
+	printf "%s\n" $Scurr >> $testname;
+	if [[ -f $4.order.sgd ]]; then
+		mv $4.order test/$3.$4.$5.$6.$7.$8.order.sgd;
+	fi;
+	if [[ -f $4.theta.sgd ]]; then
+		mv $4.theta.sgd test/$3.$4.$5.$6.$7.$8.theta.sgd;
+	fi;
+	if [[ -f $4.order.adagrad ]]; then
+		mv $4.order test/$3.$4.$5.$6.$7.$8.order.adagrad;
+	fi;
+	if [[ -f $4.theta.adagrad ]]; then
+		mv $4.theta.adagrad test/$3.$4.$5.$6.$7.$8.theta.adagrad
+	fi;
+	if [[ -f test.curr ]]; then
+		rm test.curr
+	fi;
+}
+H="GRUPPO";
+for dataset in $datasets; do
+	H=$H";DS";
+	for deg in $degrees; do
+		for k in $batchs; do
+			H=$H";ARCH;BATCH;DEGREE;ETA;ITER;ALGO;TTOT;TCONV;TOPT;ERR;LEN;MSE";
+			H=$H";ARCH;BATCH;DEGREE;ETA;ITER;ALGO;TTOT;TCONV;TOPT;ERR;LEN;MSE";
+			H=$H";ARCH;BATCH;DEGREE;ETA;ITER;ALGO;TTOT;TCONV;TOPT;ERR;LEN;MSE";
+			H=$H";ARCH;BATCH;DEGREE;ETA;ITER;ALGO;TTOT;TCONV;TOPT;ERR;LEN;MSE";
+			H=$H";ARCH;BATCH;DEGREE;ETA;ITER;ALGO;TTOT;TCONV;TOPT;ERR;LEN;MSE";
+			H=$H";ARCH;BATCH;DEGREE;ETA;ITER;ALGO;TTOT;TCONV;TOPT;ERR;LEN;MSE";
+			H=$H";ARCH;BATCH;DEGREE;ETA;ITER;ALGO;TTOT;TCONV;TOPT;ERR;LEN;MSE";
+			H=$H";ARCH;BATCH;DEGREE;ETA;ITER;ALGO;TTOT;TCONV;TOPT;ERR;LEN;MSE";
+		done;
+	done;
+done;
+printf "%s\n" $H> $testname;
+for g in $groups; do
+	cd $g;
+	S=$g;
+	printf "Gruppo: %s\n" $g;
+	if [[ ! -d "test" ]]; then
+		mkdir test;
+	fi;
+	for dataset in $datasets; do
+		printf "\tDataset: %s\n" $dataset;
+		S=$S";"$dataset;
+		for deg in $degrees; do
+			printf "\t\tGrado: %s\n" $deg;
+			for k in $batchs; do
+				printf "\t\t\tBatch: %s\n" $k;
+				printf "\t\t\t\t32 SGD\n";
+				exec $g $tout 32 $dataset"_"$deg"f" $k $deg $etaSGD $it;
+				printf "\t\t\t\t\t%s\n" $Scurr;
+				S=$S";"$Scurr;
+				printf "\t\t\t\t32 ADAGRAD\n" $g;
+				exec $g $tout 32 $dataset"_"$deg"f" $k $deg $etaADA $it -adagrad;
+				printf "\t\t\t\t\t%s\n" $Scurr;
+				S=$S";"$Scurr;
+				printf "\t\t\t\t64 SGD\n" $g;
+				exec $g $tout 64 $dataset"_"$deg"d" $k $deg $etaSGD $it;
+				printf "\t\t\t\t\t%s\n" $Scurr;
+				S=$S";"$Scurr;
+				printf "\t\t\t\t64 ADAGRAD\n" $g;
+				exec $g $tout 64 $dataset"_"$deg"d" $k $deg $etaADA $it -adagrad;
+				printf "\t\t\t\t\t%s\n" $Scurr;
+				S=$S";"$Scurr;
+				printf "\t\t\t\t32 SGD OPENMP\n";
+				exec $g $tout 32omp $dataset"_"$deg"f" $k $deg $etaSGD $it;
+				printf "\t\t\t\t\t%s\n" $Scurr;
+				S=$S";"$Scurr;
+				printf "\t\t\t\t32 ADAGRAD OPENMP\n" $g;
+				exec $g $tout 32omp $dataset"_"$deg"f" $k $deg $etaADA $it -adagrad;
+				printf "\t\t\t\t\t%s\n" $Scurr;
+				S=$S";"$Scurr;
+				printf "\t\t\t\t64 SGD OPENMP\n" $g;
+				exec $g $tout 64omp $dataset"_"$deg"d" $k $deg $etaSGD $it;
+				printf "\t\t\t\t\t%s\n" $Scurr;
+				S=$S";"$Scurr;
+				printf "\t\t\t\t64 ADAGRAD OPENMP\n" $g;
+				exec $g $tout 64omp $dataset"_"$deg"d" $k $deg $etaADA $it -adagrad;
+				printf "\t\t\t\t\t%s\n" $Scurr;
+				S=$S";"$Scurr;
+			done;
+		done;
+	done;
+	cd ../..
+	printf "%s\n" $S >> $testname;
+done;

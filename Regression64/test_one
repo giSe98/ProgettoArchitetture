@@ -1,0 +1,68 @@
+#!/bin/bash
+datasets="test_2000x4_4";
+groups=$(ls -d progetti/gruppo*);
+groups="progetti/"$1;
+batchs="30";
+degrees="4";
+etaSGD=0.001;
+etaADA=3;
+it=3000;
+tout=1;
+ts=$(date +%H-%M-%S-%d-%m-%Y);
+testname=../../test/test.$ts.history;
+
+if [[ ! -d test ]]; then
+	mkdir test;
+fi;
+
+exec(){
+	arch=$(printf "%s" $3 | sed s/omp//g);
+	omp=$(printf "%s" $3 | sed s/[^omp]//g);
+	ds="../../datasets/"$4;
+	if [[ $# -eq 8 ]]; then
+		algo=SGD;
+	else
+		algo=ADA;
+	fi;
+	START_TIME=$(date +%s%3N);
+	if [[ $# -eq 8 ]]; then
+		timeout $2 ./regression$3 $ds -batch $5 -degree $6 -eta $7 -iter $8;
+		e=$?;
+		algo=SGD;
+	else
+		timeout $2 ./regression$3 $ds -batch $5 -degree $6 -eta $7 -iter $8 $9;
+		e=$?;
+		algo=ADA;
+	fi;
+	../../evaluate$arch $4 $algo$omp;
+}
+
+for g in $groups; do
+	cd $g;
+	printf "Gruppo: %s\n" $g;
+	if [[ ! -d "test" ]]; then
+		mkdir test;
+	fi;
+	for dataset in $datasets; do
+		printf "\tDataset: %s\n" $dataset;
+		for deg in $degrees; do
+			printf "\t\tGrado: %s\n" $deg;
+			for k in $batchs; do
+				printf "\t\t\tBatch: %s\n" $k;
+				printf "\t\t\t\t32 SGD\n";
+				exec $g $tout 32 $dataset"f" $k $deg $etaSGD $it;
+				printf "\t\t\t\t\t%s\n" $line;
+				printf "\t\t\t\t32 ADAGRAD\n" $g;
+				exec $g $tout 32 $dataset"f" $k $deg $etaADA $it -adagrad;
+				printf "\t\t\t\t\t%s\n" $line;
+				printf "\t\t\t\t64 SGD\n" $g;
+				exec $g $tout 64 $dataset"d" $k $deg $etaSGD $it;
+				printf "\t\t\t\t\t%s\n" $line;
+				printf "\t\t\t\t64 ADAGRAD\n" $g;
+				exec $g $tout 64 $dataset"d" $k $deg $etaADA $it -adagrad;
+				printf "\t\t\t\t\t%s\n" $line;
+			done;
+		done;
+	done;
+	cd ../..
+done;
