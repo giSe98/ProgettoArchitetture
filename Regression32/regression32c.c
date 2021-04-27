@@ -174,31 +174,16 @@ void save_data(char* filename, void* X, int n, int k) {
 
 extern float prodottoScalare(float* a, float* b, int dim);
 extern void aggiornaTheta(float* theta,float* x, float fattore,int dim);
-extern  void sottrazioneVettori(float* a, float* b, int dim);
-extern  void aggiornaThetaAdagrad(float* theta, float* x, float fattore, int dim, MATRIX G, type pScalare);
+extern void aggiornaThetaAdagrad(float* theta, float* x, float fattore, int dim, MATRIX G, type pScalare);
 
-// DA ELIMINARE
-void stampaVettore(float *a, int dim){
-    for (int i=0;i<dim;i++){
-        printf("%.3f\t",a[i]);
-    }
-    printf("\n");
-}
-// Returns value of Binomial Coefficient C(n, k) 
 int binomialCoeff(int n, int k) { 
     int res = 1, i; 
-  
-    // Since C(n, k) = C(n, n-k) 
     if (k > n - k) 
         k = n - k; 
-  
-    // Calculate value of 
-    // [n * (n-1) --- (n-k+1)] / [k * (k-1) ---- 1] 
     for (i = 0; i < k; ++i) { 
         res *= (n - i); 
         res /= (i + 1); 
     } 
-  
     return res; 
 }
 
@@ -246,9 +231,7 @@ void convert_data(params* input){
     input->t=upper;
     input->xast = alloc_matrix(input->n,upper);
     int i;
-    //POSSIBILE LOOP-UNROLLING / CACHE BLOCKING -> LAVORANDO PER RIGHE INDIPENDENTI
     for(i = 0; i<input->n; ++i){
-        //mettere direttiva openmp
         estendi(input,i*upper,i*input->d);
     }
 }
@@ -257,11 +240,11 @@ void convert_data(params* input){
 
 void calcoloNuovoThetaAdagrad(int j, int v, MATRIX G, params* input){
     int i;
-    type pScalare,fattore;
+    type pScalare;
+    type fattore = input->eta/v;
     for(i=j;i<j+v;++i){
         pScalare = prodottoScalare(input->theta,&input->xast[i*input->t],input->t) - input->y[i];
-        fattore = input->eta/v;
-        aggiornaThetaAdagrad(input->theta,&input->xast[i*input->t],fattore,input->t,&G[i*input->t],pScalare);
+        aggiornaThetaAdagrad(input->theta,&input->xast[i*input->t],fattore,input->t,G,pScalare);
     }
 
 }
@@ -273,11 +256,9 @@ void calcoloNuovoTheta(int j, int v, params* input){
         pScalare = prodottoScalare(input->theta,&input->xast[i*input->t],input->t) - input->y[i];
         fattore = pScalare*(input->eta/v);
         aggiornaTheta(input->theta,&input->xast[i*input->t],fattore,input->t);
-        //printf("La somma parziale e': ");
-        //stampaVettore(somma,input->t);
     }
 }
-//utilizzo t al posto di d poiché dopo la conversione il dataset avrà dimensionalità t = upperbound
+
 void sgd(params* input){
     input->theta = alloc_matrix(1,input->t); //creazione vettore theta (parametri)
     int iter=0,i,j;
@@ -285,42 +266,25 @@ void sgd(params* input){
     for(i=0;i<input->t;i++)
         input->theta[i]=0;
     if(input->adagrad){
-        G = alloc_matrix(input->n,input->t);
-    for(i=0;i<input->t*input->n;i++)
-	G[i]=0;
+        G = alloc_matrix(1,input->t);
+	for(i=0;i<input->t;i++){
+		G[i]=0;
+	}
     }
-    //printf("Theta creato ed allocato\n");
     while(iter<input->iter){
-        //printf("\nIterazione numero: %d \n",iter);
         for(j=0;j<input->n;j+=input->k){
-            //printf("Elaboro batch numero: %d \n",j);
-            //ridimensionamento batch (opzionale)
             int v = input->k;
             if(input->n-j<input->k)   v = input->n-j;
-            //calcolo nuovo vettore theta
-            
             if(input->adagrad)
                 calcoloNuovoThetaAdagrad(j, v, G, input);
             else
                 calcoloNuovoTheta(j, v, input);
-            
-            //stampaVettore(input->theta,input->t);
         }
         iter+=1;
     }
-    //deve invece di fare return assegnarlo al vettore theta
-    //return theta;
 }
 
 int main(int argc, char** argv) {
-    /*
-    float* a = alloc_matrix(1,9);
-    float* b = alloc_matrix(1,9);
-    
-    a[0]=1;a[1]=2;a[2]=3;a[3]=4;a[4]=5;a[5]=6;a[6]=7;a[7]=8;a[8]=1;
-    b[0]=9;b[1]=10;b[2]=11;b[3]=12;b[4]=13;b[5]=14;b[6]=15;b[7]=16;b[8]=1;
-    int dim = 9;
-    */
     char fname[256];
     char* dsname;
     char* filename;
@@ -328,12 +292,7 @@ int main(int argc, char** argv) {
     clock_t t;
     float time;
     int yd = 1;
-    
-    
-    /*
-    float ris = prodottoScalare(a,b,dim);
-    printf("%f",ris);
-    */
+ 
     //
     // Imposta i valori di default dei parametri
     //

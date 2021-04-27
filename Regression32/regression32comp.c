@@ -31,14 +31,14 @@
 * 
 * Per generare il file eseguibile:
 * 
-* nasm -f elf64 regression64.nasm && gcc -m64 -msse -O0 -no-pie sseutils64.o regression64.o regression46c.c -o regression64c -lm && ./regression64c $pars
+* nasm -f elf32 regression32.nasm && gcc -m32 -msse -O0 -no-pie sseutils32.o regression32.o regression32c.c -o regression32c -lm && ./regression32c $pars
 * 
 * oppure
 * 
-* ./runregression64
+* ./runregression32
 * 
 */
-
+#include <omp.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -47,7 +47,7 @@
 #include <libgen.h>
 #include <xmmintrin.h>
 
-#define	type		double
+#define	type		float
 #define	MATRIX		type*
 #define	VECTOR		type*
 
@@ -72,9 +72,9 @@ typedef struct {
 /*
 * 
 *	Le funzioni sono state scritte assumento che le matrici siano memorizzate 
-* 	mediante un array (double*), in modo da occupare un unico blocco
+* 	mediante un array (float*), in modo da occupare un unico blocco
 * 	di memoria, ma a scelta del candidato possono essere 
-* 	memorizzate mediante array di array (double**).
+* 	memorizzate mediante array di array (float**).
 * 
 * 	In entrambi i casi il candidato dovrà inoltre scegliere se memorizzare le
 * 	matrici per righe (row-major order) o per colonne (column major-order).
@@ -84,7 +84,7 @@ typedef struct {
 */
 
 void* get_block(int size, int elements) { 
-    return _mm_malloc(elements*size,32); 
+    return _mm_malloc(elements*size,16); 
 }
 
 void free_block(void* p) { 
@@ -110,7 +110,7 @@ void dealloc_matrix(MATRIX mat) {
 * 	Codifica del file:
 * 	primi 4 byte: numero di righe (N) --> numero intero a 32 bit
 * 	successivi 4 byte: numero di colonne (M) --> numero intero a 32 bit
-* 	successivi N*M*8 byte: matrix data in row-major order --> numeri floating-point a precisione doppia
+* 	successivi N*M*4 byte: matrix data in row-major order --> numeri floating-point a precisione singola
 * 
 *****************************************************************************
 *	Se lo si ritiene opportuno, è possibile cambiare la codifica in memoria
@@ -152,7 +152,7 @@ MATRIX load_data(char* filename, int *n, int *k) {
 * 	Codifica del file:
 * 	primi 4 byte: numero di righe (N) --> numero intero a 32 bit
 * 	successivi 4 byte: numero di colonne (M) --> numero intero a 32 bit
-* 	successivi N*M*8 byte: matrix data in row-major order --> numeri floating-point a precisione doppia
+* 	successivi N*M*4 byte: matrix data in row-major order --> numeri interi o floating-point a precisione singola
 */
 void save_data(char* filename, void* X, int n, int k) {
     FILE* fp;
@@ -172,32 +172,25 @@ void save_data(char* filename, void* X, int n, int k) {
 
 // PROCEDURE ASSEMBLY
 
-extern void prodottoScalare(double* a, double* b, int dim,double* pScalare);
-extern void aggiornaTheta(double* theta,double* x, double fattore,int dim);
-extern void aggiornaThetaAdagrad(double* theta, double* x, double fattore, int dim, MATRIX G, type pScalare);
+extern float prodottoScalare(float* a, float* b, int dim);
+extern void aggiornaTheta(float* theta,float* x, float fattore,int dim);
+extern void aggiornaThetaAdagrad(float* theta, float* x, float fattore, int dim, MATRIX G, type pScalare);
 
 
-// Returns value of Binomial Coefficient C(n, k) 
 int binomialCoeff(int n, int k) { 
     int res = 1, i; 
-  
-    // Since C(n, k) = C(n, n-k) 
     if (k > n - k) 
         k = n - k; 
-  
-    // Calculate value of 
-    // [n * (n-1) --- (n-k+1)] / [k * (k-1) ---- 1] 
     for (i = 0; i < k; ++i) { 
         res *= (n - i); 
         res /= (i + 1); 
-    } 
-  
+    }
     return res; 
 }
 
 void estendi(params* input,int offset_xast, int offset_x){
     //INIZIALIZZAZIONE PRIMI LENX+1 ELEMENTI
-    input->xast[offset_xast]=1;
+    input->xast[0+offset_xast]=1;
     for(int i = 0; i<input->d; ++i)
         input->xast[i+1+offset_xast]=input->x[i+offset_x];
     //START DA GRADO 2
@@ -211,7 +204,7 @@ void estendi(params* input,int offset_xast, int offset_x){
 			temp++;
 		}
 		temp--;
-		input->xast[ind+offset_xast]=pow(input->x[offset_x],i);
+		input->xast[ind+offset_xast]=pow(input->x[0+offset_x],i);
 		ind++;
 		while(temp>=1 && input->d != 1) {
 			if(aux[temp]==input->d-1) {
@@ -234,41 +227,42 @@ void estendi(params* input,int offset_xast, int offset_x){
 		}
 	}
 }
-
 void convert_data(params* input){
     int upper = binomialCoeff(input->degree+input->d, input->d);
     input->t=upper;
-    input->xast =alloc_matrix(input->n,upper);
+    input->xast = alloc_matrix(input->n,upper);
     int i;
-    //POSSIBILE LOOP-UNROLLING / CACHE BLOCKING -> LAVORANDO PER RIGHE INDIPENDENTI
+    #pragma omp parallel for	
     for(i = 0; i<input->n; ++i){
-        //mettere direttiva openmp
         estendi(input,i*upper,i*input->d);
     }
 }
+
+
 
 void calcoloNuovoThetaAdagrad(int j, int v, MATRIX G, params* input){
     int i;
     type pScalare;
     type fattore = input->eta/v;
     for(i=j;i<j+v;++i){
-        prodottoScalare(input->theta,&input->xast[i*input->t],input->t,&pScalare);
-        aggiornaThetaAdagrad(input->theta,&input->xast[i*input->t],fattore,input->t,G,(pScalare- input->y[i]));
+        pScalare = prodottoScalare(input->theta,&input->xast[i*input->t],input->t) - input->y[i];
+        aggiornaThetaAdagrad(input->theta,&input->xast[i*input->t],fattore,input->t,G,pScalare);
     }
 
 }
 
 void calcoloNuovoTheta(int j, int v, params* input){
     int i;
-    type pScalare,fattore, param = input->eta/v;
+    type pScalare,fattore;
     for(i=j; i<j+v; ++i){
-        prodottoScalare(input->theta,&input->xast[i*input->t],input->t,&pScalare);
-        fattore = (pScalare- input->y[i]) * param;
+        pScalare = prodottoScalare(input->theta,&input->xast[i*input->t],input->t) - input->y[i];
+        fattore = pScalare*(input->eta/v);
         aggiornaTheta(input->theta,&input->xast[i*input->t],fattore,input->t);
     }
 }
+
 void sgd(params* input){
-   input->theta = alloc_matrix(1,input->t); //creazione vettore theta (parametri)
+    input->theta = alloc_matrix(1,input->t);
     int iter=0,i,j;
     MATRIX G;
     for(i=0;i<input->t;i++)
@@ -283,8 +277,6 @@ void sgd(params* input){
         for(j=0;j<input->n;j+=input->k){
             int v = input->k;
             if(input->n-j<input->k)   v = input->n-j;
-            //calcolo nuovo vettore theta
-            
             if(input->adagrad)
                 calcoloNuovoThetaAdagrad(j, v, G, input);
             else
@@ -295,7 +287,6 @@ void sgd(params* input){
 }
 
 int main(int argc, char** argv) {
-
     char fname[256];
     char* dsname;
     char* filename;
@@ -303,12 +294,12 @@ int main(int argc, char** argv) {
     clock_t t;
     float time;
     int yd = 1;
-    
+
     //
     // Imposta i valori di default dei parametri
     //
-
     params* input = malloc(sizeof(params));
+
     
     input->x = NULL;
     input->y = NULL;
@@ -450,21 +441,20 @@ int main(int argc, char** argv) {
         else
             printf("Adagrad disabled\n");
     }
-    
-    //
-    //prova(input);
-    //
 
     //
     // Conversione Dati
     //
-    
     t = clock();
     convert_data(input);
     t = clock() - t;
     time = ((float)t)/CLOCKS_PER_SEC;
     sprintf(fname, "%s.xast", dsname);
-       
+    
+    
+    
+    
+    
     if(!input->silent)
         printf("Conversion time = %.3f secs\n", time);
     else
@@ -489,9 +479,9 @@ int main(int argc, char** argv) {
     //
     
     if(!input->adagrad)
-	    sprintf(fname, "%s.theta.sgd", dsname);
+	    sprintf(fname, "%s.theta.sgdomp", dsname);
     else
-	    sprintf(fname, "%s.theta.adagrad", dsname);
+	    sprintf(fname, "%s.theta.adagradomp", dsname);
     save_data(fname, input->theta, input->t, 1);
     if(input->display){
         printf("theta: [");
@@ -505,3 +495,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+ 

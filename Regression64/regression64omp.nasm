@@ -37,8 +37,8 @@ section .bss			; Sezione contenente dati non inizializzati
 
 alignb 32
 eta		resq	1
-alignb 32
-w		resq 4
+;alignb 32
+;w		resq 4
 section .text			; Sezione contenente il codice macchina
 
 ; ----------------------------------------------------------
@@ -183,7 +183,7 @@ aggiornaTheta:
 		;rdi theta allineato
 		;rsi x non allineato
 		;rdx dim
-		VBROADCASTSD YMM2, XMM0 ; COPIO 4 VOLTE FATTORE IN YMM2
+		VBROADCASTSD YMM2, XMM0 ; COPIO 4 VOLTE FATTORE IN YMM7
 		;VMOVAPD	[w], YMM2
 		;printpd	w,2
 		XOR		R9,R9
@@ -193,10 +193,18 @@ aggiornaTheta:
 
 
 c6:		VMOVAPD YMM0, [RDI+R9]
-		VMOVUPD YMM1, [RSI+R9]
-		VMULPD 	YMM1, YMM2
-		VSUBPD 	YMM0, YMM1
-		VMOVAPD [RDI+R9], YMM0
+		;VMOVAPD	[w], YMM0
+		;printpd	w,2
+		VMOVUPD YMM1, [RSI+R9] ;XAST
+		;VMOVAPD	[w], YMM1
+		;printpd	w,2
+		VMULPD YMM1, YMM2 ;XAST*FATTORE
+		;VMOVAPD	[w], YMM1
+		;printpd	w,2
+		VSUBPD YMM0, YMM1
+		;VMOVAPD	[w], YMM0
+		;printpd	w,2
+		VMOVUPD [RDI+R9], YMM0
 		
 		ADD R9, 32
 		ADD R8,1

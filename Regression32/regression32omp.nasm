@@ -96,6 +96,7 @@ SCALARE	equ		28
 
 global prodottoScalare
 global aggiornaTheta
+global sottrazioneVettori
 global aggiornaThetaAdagrad
 
 aggiornaThetaAdagrad:
@@ -187,6 +188,69 @@ c8:	MOVSS		XMM0,[EAX+EDX]
 	ADD			EDI,1
 if3:	CMP		EDI,ECX
 	JL			c8
+	
+	pop	edi									; ripristina i registri da preservare
+	pop	esi
+	pop	ebx
+	
+	mov	esp, ebp							; ripristina lo Stack Pointer
+	
+	pop	ebp
+					; ripristina il Base Pointer
+	ret	
+
+
+
+sottrazioneVettori:
+	; ------------------------------------------------------------
+	; Sequenza di ingresso nella funzione
+	; ------------------------------------------------------------
+	
+	push		ebp							
+	mov			ebp, esp					
+	push		ebx							
+	push		esi
+	push		edi
+	
+	; ------------------------------------------------------------
+	; legge i parametri dal Record di Attivazione corrente
+	; ------------------------------------------------------------
+	
+	mov		EAX, [EBP+A]
+	MOV	EBX, [EBP+B]
+	MOV	ESI, [EBP+N]
+	
+	XOR		EDI,EDI
+	XOR		EDX,EDX
+	SHR		ESI,2
+	
+c5:	MOVAPS	XMM0,[EAX+EDX]
+	MOVUPS	XMM1,[EBX+EDX]
+	SUBPS	XMM0,XMM1
+	
+	MOVAPS	[EAX+EDX],XMM0
+	
+	ADD 	EDX,16
+	ADD 	EDI,	1
+	CMP 	EDI,ESI
+	JL		c5
+	
+	SHL 	ESI,2
+	MOV 	ECX,[EBP+N]
+	SUB 	ECX,ESI
+	XOR 	EDI,EDI
+	JMP		if2
+
+c6:	MOVSS	XMM0,[EAX+EDX]
+	MOVSS	XMM1,[EBX+EDX]
+	SUBSS	XMM0,XMM1
+	
+	MOVSS	[EAX+EDX],XMM0
+	
+	ADD		EDX,4
+	ADD		EDI,1
+if2:	CMP	EDI,ECX
+	JL		c6
 	
 	pop	edi									; ripristina i registri da preservare
 	pop	esi

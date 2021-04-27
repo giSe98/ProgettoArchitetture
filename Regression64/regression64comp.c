@@ -38,7 +38,7 @@
 * ./runregression64
 * 
 */
-
+#include <omp.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -176,22 +176,14 @@ extern void prodottoScalare(double* a, double* b, int dim,double* pScalare);
 extern void aggiornaTheta(double* theta,double* x, double fattore,int dim);
 extern void aggiornaThetaAdagrad(double* theta, double* x, double fattore, int dim, MATRIX G, type pScalare);
 
-
-// Returns value of Binomial Coefficient C(n, k) 
 int binomialCoeff(int n, int k) { 
     int res = 1, i; 
-  
-    // Since C(n, k) = C(n, n-k) 
     if (k > n - k) 
         k = n - k; 
-  
-    // Calculate value of 
-    // [n * (n-1) --- (n-k+1)] / [k * (k-1) ---- 1] 
     for (i = 0; i < k; ++i) { 
         res *= (n - i); 
         res /= (i + 1); 
     } 
-  
     return res; 
 }
 
@@ -240,9 +232,8 @@ void convert_data(params* input){
     input->t=upper;
     input->xast =alloc_matrix(input->n,upper);
     int i;
-    //POSSIBILE LOOP-UNROLLING / CACHE BLOCKING -> LAVORANDO PER RIGHE INDIPENDENTI
+    #pragma omp parallel for
     for(i = 0; i<input->n; ++i){
-        //mettere direttiva openmp
         estendi(input,i*upper,i*input->d);
     }
 }
@@ -260,10 +251,10 @@ void calcoloNuovoThetaAdagrad(int j, int v, MATRIX G, params* input){
 
 void calcoloNuovoTheta(int j, int v, params* input){
     int i;
-    type pScalare,fattore, param = input->eta/v;
+    type pScalare,fattore;
     for(i=j; i<j+v; ++i){
         prodottoScalare(input->theta,&input->xast[i*input->t],input->t,&pScalare);
-        fattore = (pScalare- input->y[i]) * param;
+        fattore = (pScalare- input->y[i])*(input->eta/v);
         aggiornaTheta(input->theta,&input->xast[i*input->t],fattore,input->t);
     }
 }
@@ -283,8 +274,7 @@ void sgd(params* input){
         for(j=0;j<input->n;j+=input->k){
             int v = input->k;
             if(input->n-j<input->k)   v = input->n-j;
-            //calcolo nuovo vettore theta
-            
+
             if(input->adagrad)
                 calcoloNuovoThetaAdagrad(j, v, G, input);
             else
@@ -450,10 +440,6 @@ int main(int argc, char** argv) {
         else
             printf("Adagrad disabled\n");
     }
-    
-    //
-    //prova(input);
-    //
 
     //
     // Conversione Dati
@@ -489,9 +475,9 @@ int main(int argc, char** argv) {
     //
     
     if(!input->adagrad)
-	    sprintf(fname, "%s.theta.sgd", dsname);
+	    sprintf(fname, "%s.theta.sgdomp", dsname);
     else
-	    sprintf(fname, "%s.theta.adagrad", dsname);
+	    sprintf(fname, "%s.theta.adagradomp", dsname);
     save_data(fname, input->theta, input->t, 1);
     if(input->display){
         printf("theta: [");
