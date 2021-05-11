@@ -12,7 +12,7 @@
 #
 # 1. Descrizione del problema
 
-Dato un insieme di osservazioni concernenti le variabili _x_ e _ y_ e fissata una famiglia di funzioni _f(x,Θ)_ da usare per approssimare la relazione tra _x_ e _y_, ossia <div align="center"> <i>y∼f(x,Θ)</i></div>
+Dato un insieme di osservazioni concernenti le variabili _x_ e _y_ e fissata una famiglia di funzioni _f(x,Θ)_ da usare per approssimare la relazione tra _x_ e _y_, ossia <div align="center"> <i>y∼f(x,Θ)</i></div>
 
 il problema consiste nel trovare i parametri _Θ_ della funzione _f_ per cui sia minimizzato l’errore di approssimazione. _Θ_ = [_θ<sub>1</sub>_, ..., _θ<sub>t</sub>_] è in generale un vettore di _t_ parametri.
 In particolare, in questo progetto assumiamo che la funzione _f_ sia una funzione polinomiale di grado _deg_ e che l’algoritmo di ricerca dei parametri si basi sulla discesa stocastica del gradiente.
